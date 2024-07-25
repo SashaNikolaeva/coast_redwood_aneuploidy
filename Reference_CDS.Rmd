@@ -1,0 +1,93 @@
+---
+title: "Reference Set of CDS Sequences"
+output: html_document
+date: "2024-07-25"
+---
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+
+# Read in BLAST results
+blast_results <- read.table("blast_results.txt", header = FALSE, sep = "\t", 
+                            col.names = c("qseqid", "sseqid", "pident", "length", "mismatch", 
+                                          "gapopen", "qstart", "qend", "sstart", "send", 
+                                          "evalue", "bitscore", "nident"))
+
+# Calculate the frequency of hits per query sequence
+query_count <- as.data.frame(table(blast_results$qseqid))
+hist(log(query_count$Freq), breaks = "FD", main = "Log Frequency of Hits", xlab = "Log(Frequency)")
+
+# Maximum frequency of hits
+max_hits <- max(query_count$Freq)
+max_hits
+
+# Distribution of query frequencies
+query_frequencies <- as.data.frame(table(query_count$Freq))
+
+# Identify qseqids with exactly 6 hits
+qseqids_with_6_hits <- subset(query_count, Freq == 6)$Var1
+
+# Group frequencies greater than 36 into one category
+adjusted_frequencies <- query_frequencies %>%
+  mutate(Var1 = as.numeric(Var1)) %>%
+  mutate(Grouped_Var1 = if_else(Var1 > 36, "37+", as.character(Var1))) %>%
+  group_by(Grouped_Var1) %>%
+  summarise(Freq = sum(Freq), .groups = 'drop')
+
+# Create an ordered factor for Grouped_Var1
+levels <- c(as.character(1:36), "37+")
+adjusted_frequencies$Grouped_Var1 <- factor(adjusted_frequencies$Grouped_Var1, levels = levels)
+
+# Plot the frequency distribution
+query_plot <- ggplot(adjusted_frequencies, aes(x = Grouped_Var1, y = Freq)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  theme_minimal() +
+  labs(title = "BLAST Query Frequency Distribution", 
+       x = "Frequency of Hits Per Query Sequence", 
+       y = "Count of Query Sequences") +
+  geom_text(aes(label = Freq), vjust = -0.5, size = 3) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+        axis.title.x = element_text(margin = margin(t = 10, b = 10)))
+
+# Print the plot
+print(query_plot)
+
+```
+
+
+```{r Write BED file}
+# Filter the BLAST results for qseqids with exactly 6 hits
+six_hits_filtered <- subset(blast_results, qseqid %in% qseqids_with_6_hits)
+
+# Summary of percent identity for the filtered data
+summary(six_hits_filtered$pident)
+
+# Select the first hit for each qseqid
+selected_sequences <- six_hits_filtered %>%
+  group_by(qseqid) %>%
+  slice(1) %>%
+  ungroup() %>%
+  select(qseqid, sseqid, sstart, send, pident)
+
+# Calculate the strand direction based on the start and end positions
+selected_sequences <- selected_sequences %>%
+  mutate(difference = sstart - send,
+         strand = ifelse(difference > 0, "-", "+"))
+
+# Create a BED format dataframe
+six_hits_bed <- selected_sequences %>%
+  mutate(newV1 = ifelse(difference > 0, send - 1, sstart - 1),
+         newV3 = ifelse(difference < 0, send, sstart),
+         name = "name",
+         score = "score") %>%
+  select(sseqid, newV1, newV3, name, score, strand)
+
+# Write the BED file
+write.table(six_hits_bed, "one_copy_TEST.bed", row.names = FALSE, quote = FALSE, col.names = FALSE, sep = "\t")
+
+```
+
+
+
