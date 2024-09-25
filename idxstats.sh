@@ -20,10 +20,10 @@ for BAM_FILE in "$BAM_DIR"/*.bam; do
     # Extract the base name of the BAM file to name the output accordingly
     BASE_NAME=$(basename "$BAM_FILE" ".bam")
 
-    # Create a temporary BAM file for primary alignments with MQ >= 30
+    # Create a temporary BAM file for primary alignments with MQ >= 60
     TEMP_BAM="$TEMP_DIR/${BASE_NAME}_primary_MQ30.bam"
-    echo "Filtering for primary alignments with MQ >= 30 in $BAM_FILE..."
-    samtools view -b -F 256 -F 2048 -q 30 "$BAM_FILE" > "$TEMP_BAM"
+    echo "Filtering for primary alignments with MQ >= 60 in $BAM_FILE..."
+    samtools view -b -F 256 -F 2048 -q 60 "$BAM_FILE" > "$TEMP_BAM"
 
     # Index the temporary primary BAM file
     echo "Indexing temporary BAM file for $BASE_NAME..."
